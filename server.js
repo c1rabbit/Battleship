@@ -1,84 +1,20 @@
-
+const config = require('config');
 const net = require('net');
+const Player = require('./models/player.js');
+const shipLengthsArray = config.get('shipLengthsArray');
+const boardCols = config.get('Board.cols');
+const boardRows = config.get('Board.rows');
+
 let status = 'waiting';
 const lineBreak = '=========================================\n';
 
 //board setup
 let turn = 0;
-const shipLengthsArray = [1,3]; // array of ship lengths for both players to place
-const boardCols = 9;
-const boardRows = 9;
+//const shipLengthsArray = config.get('shipLengthsArray'); // array of ship lengths for both players to place
+
 
 let players = []; //container for connected players
 
-
-class Board{//create game board
-  constructor(height, width){
-    this.board = [];
-    for(let y = 0; y < height; y++ ){
-      let row = [];
-      for(let x =0; x< width; x++){
-        row.push('_');
-      }
-      this.board.push(row);
-    }
-  }
-  getBoard(){
-    return this.board;
-  }
-}
-
-class Player{
-  constructor(ws){
-    this.ws = ws;
-    this.myBoard = new Board(boardRows, boardCols);
-    this.myShips = shipLengthsArray;
-    this.mySetupIndex = 0;
-    this.theirBoard = new Board(boardRows, boardCols);
-  }
-  getShips(){
-    return this.myShips;
-  }
-  getBoard(){
-    let letter = 'A';
-    let output = '  ';
-
-    for(let x = 1; x <= this.myBoard.board.length; x++ ){
-      output += x + " ";
-    }
-    output+= "\n";
-    for(let y = 0; y < this.myBoard.board.length; y++ ){
-      output += String.fromCharCode(letter.charCodeAt() + y) + '|';
-      for(let x = 0; x< this.myBoard.board[y].length; x++){
-        output += this.myBoard.board[y][x] + '|';
-      }
-      output += '\n';
-    }
-
-
-    console.log(output);
-    return output;
-  }
-  getTheirBoard(){
-    let letter = 'A';
-    let output = '  ';
-
-    for(let x = 1; x <= this.theirBoard.board.length; x++ ){
-      output += x + " ";
-    }
-    output+= "\n";
-    for(let y = 0; y < this.theirBoard.board.length; y++ ){
-      output += String.fromCharCode(letter.charCodeAt() + y) + '|';
-      for(let x = 0; x< this.theirBoard.board[y].length; x++){
-        output += this.theirBoard.board[y][x] + '|';
-      }
-      output += '\n';
-    }
-
-    console.log(output);
-    return output;
-  }
-}
 
 function isReady(){
   if(players.length == 2){
@@ -170,11 +106,11 @@ function setup(userId, req){
           status = "play";
           console.log("board set up. ready to play");
           players[0].ws.write(lineBreak
-            + "\n opponent board:\n" + players[0].getTheirBoard()
+            + "\n opponent board:\n" + players[0].getOpponentBoard()
             + "my board:\n" +players[0].getBoard()
             + "\n board set up. ready to play. where is your first shot?");
           players[1].ws.write(lineBreak
-            + "\n opponent board:\n" + players[1].getTheirBoard()
+            + "\n opponent board:\n" + players[1].getOpponentBoard()
             + "my board:\n" +players[1].getBoard()
             + "\n board set up. ready to play. waiting for other player to take first shot.");
 
@@ -225,15 +161,15 @@ function attack(userId, req){
         //check valid attack position
         if(letter >= boardRows || number >= boardCols){
           throw "attack position is off board";
-        }else if(players[userId].theirBoard.board[letter][number] != "_"){
+        }else if(['X','*'].includes(players[otherPlayerId(userId)].myBoard.board[letter][number])){
           throw "you've already attacked there";
         }else{//valid attack spot
           if(players[otherPlayerId(userId)].myBoard.board[letter][number] != "_"){
             let shipId = players[otherPlayerId(userId)].myBoard.board[letter][number];
-            players[userId].theirBoard.board[letter][number] = "X";
+            //players[otherPlayerId(userId)].myBoard.board[letter][number] = "X";
             players[otherPlayerId(userId)].myBoard.board[letter][number] ="X";
 
-            players[userId].ws.write("opponent board:\n" + players[userId].getTheirBoard() + '\nHIT!!');
+            players[userId].ws.write("opponent board:\n" + players[otherPlayerId(userId)].getOpponentBoard() + '\nHIT!!');
             players[otherPlayerId(userId)].ws.write(lineBreak + "your board: \n" + players[otherPlayerId(userId)].getBoard()
               + '\n YOU WERE HIT!! on: ' + req);
 
@@ -260,10 +196,10 @@ function attack(userId, req){
 
 
           }else {
-            players[userId].theirBoard.board[letter][number] = "*";
+            //players[otherPlayerId(userId)].myBoard.board[letter][number] = "*";
             players[otherPlayerId(userId)].myBoard.board[letter][number] ="*";
 
-            players[userId].ws.write("opponent board:\n" + players[userId].getTheirBoard()
+            players[userId].ws.write("opponent board:\n" + players[otherPlayerId(userId)].getOpponentBoard()
               + "\nOpponent's ships: " + players[otherPlayerId(userId)].myShips
               + '\nmiss...');
             players[otherPlayerId(userId)].ws.write(lineBreak + "your board:\n " + players[otherPlayerId(userId)].getBoard()
@@ -272,7 +208,7 @@ function attack(userId, req){
 
             console.log('miss\n')
           }
-          players[otherPlayerId(userId)].ws.write("opponent board:\n" + players[otherPlayerId(userId)].getTheirBoard());
+          players[otherPlayerId(userId)].ws.write("opponent board:\n" + players[userId].getOpponentBoard());
           players[otherPlayerId(userId)].ws.write("\nWhere would you like to strike?");
           nextTurn();
         }
