@@ -1,0 +1,7 @@
+{
+  "Board":{
+    "rows":9,
+    "cols":9
+  },
+  "shipLengthsArray": [1, 3]
+}
